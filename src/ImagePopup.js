@@ -11,8 +11,10 @@ function ImagePopup({ apiKey, textPrompt }) {
   const [isLoadingVideo, setLoadingVideo] = useState(false);
   const [hasStaked, setHasStaked] = useState(false); 
   const [hasDefaultNFT, setHasDefaultNFT] = useState(false);
-  const [newTextPromt, setNewTextPromt] = useState(textPrompt)
+  const [newTextPrompt, setNewTextPrompt] = useState(textPrompt);
   const [inputFase, setInputFace] = useState("https://storage.googleapis.com/dara-c1b52.appspot.com/daras_ai/media/c4850e08-61a3-11ee-9bc3-02420a000163/download.jpg.png")
+  const [defaultNFTId, setDefaultNFTID] = useState()
+
 
   const contractAddress = '0x4BCef528011Df3BDc7C2Fa6F7f642B7a9aBA375a';
   const contractAbi = subscriptionABI;
@@ -82,16 +84,16 @@ const checkDefaultNFT = async () => {
     // Get the user's default NFT ID
     const defaultNFTId = await contract.userDefaultNFT(signer.getAddress());
 
+    setDefaultNFTID(defaultNFTId);
     // If defaultNFTId is not zero (assuming 0 represents no default NFT)
     if (defaultNFTId.eq(0)) {
       console.log('User does not have a default NFT.');
-      return false;
     } else {
       console.log('User has a default NFT:', defaultNFTId.toString());
-      getNFTImage(defaultNFTId)
       setHasDefaultNFT(true)
-      return true;
     }
+
+    return defaultNFTId
       } catch (error) {
     console.error('Error checking default NFT:', error);
     return false;
@@ -109,7 +111,10 @@ async function getNFTImage(tokenId) {
       provider
     )
     const nftImage = await nftMarketplaceInstance.nftInfo(tokenId);
+    console.log(nftImage);
     setInputFace("https://ipfs.io/ipfs/" + nftImage.image)
+    setNewTextPrompt("Hi ! I am Jen, your personal assistent! Great to have you here !")
+
     return nftImage.image;
   } catch (error) {
     console.error('Error fetching NFT image:', error);
@@ -128,11 +133,6 @@ async function getNFTImage(tokenId) {
         console.log('Connected to MetaMask:', userAddress);
         setConnected(true);
         
-        // Check if the user has staked
-        const hasUserStaked = await checkUserStakingStatus(userAddress);
-        setHasStaked(hasUserStaked);
-        checkDefaultNFT();
-
       } catch (error) {
         console.error('Error connecting to MetaMask:', error);
       }
@@ -140,13 +140,24 @@ async function getNFTImage(tokenId) {
       console.warn('MetaMask is not installed or not accessible.');
     }
   };
+
+  const checkStatus = async () => {
+    // Check if the user has staked
+    await window.ethereum.request({ method: 'eth_requestAccounts' });
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+
+    const hasUserStaked = await checkUserStakingStatus(signer.getAddress());
+    setHasStaked(hasUserStaked);
+    checkDefaultNFT();
+  if (isConnected && !hasUserStaked) {
+    // Replace the video URL after the user connects the wallet
+    setOutputVideoUrl(videoDictionary["stakingInstruction"]);
+  }
+}
   
-  useEffect(() => {
-    setOutputVideoUrl(videoDictionary["default"])
-    if (isConnected && !hasStaked) {
-      // Replace the video URL after the user connects the wallet
-      setOutputVideoUrl(videoDictionary["stakingInstruction"]);
-    }
+  useEffect( () => {
+    checkStatus();
   }, [isConnected]);
 
   useEffect(() => {
@@ -159,17 +170,32 @@ async function getNFTImage(tokenId) {
   
   useEffect(() => {
     if (hasDefaultNFT) {
+      getNFTImage(defaultNFTId)
+
       // // Replace the video URL after the user connects the wallet
       // setOutputVideoUrl(videoDictionary["defaultNFTinstruction"]);
-      setNewTextPromt("Hi ! I am Jen, your personal assistent! Great to have you here !")
     }
   }, [hasDefaultNFT]);
 
+  useEffect(() => {
+    // Update newTextPrompt whenever textPrompt prop changes
+    setNewTextPrompt(textPrompt);
+  }, [textPrompt]);
 
 
+useEffect(() => {
+      // Check if the wallet is already connected
+      const { ethereum } = window;
+  if (ethereum.selectedAddress) {
+    setConnected(true);
+  
+  }
+
+})
 
   useEffect(() => {
-    if (isConnected && newTextPromt !== "Welcome") {
+
+    if (isConnected && newTextPrompt !== "Welcome") {
       // Check if the text prompt matches the condition for the default video URL
         // Fetch the video URL based on the text prompt when connected and a text prompt is provided
         async function fetchVideoUrl() {
@@ -181,7 +207,7 @@ async function getNFTImage(tokenId) {
               "face_padding_bottom": 16,
               "face_padding_left": 12,
               "face_padding_right": 6,
-              "text_prompt":newTextPromt,
+              "text_prompt":newTextPrompt,
               "tts_provider": "GOOGLE_TTS",
               "uberduck_voice_name": "the-rock",
               "uberduck_speaking_rate": 1,
@@ -218,7 +244,7 @@ async function getNFTImage(tokenId) {
         setLoadingVideo(true);
         fetchVideoUrl();
       }
-  }, [isConnected, textPrompt, apiKey]);
+  }, [isConnected, newTextPrompt, apiKey]);
 
   return (
     <div className="image-popup-container">
